@@ -30,7 +30,7 @@ public class StatisticsServiceImpl implements StatisticsService {
         };
 
         TotalStatistics total = new TotalStatistics();
-        total.setSites(sites.getSites().size());
+        total.setHowManySites(sites.getSites().size());
         total.setIndexing(true);
 
         List<DetailedStatisticsItem> detailed = new ArrayList<>();
@@ -48,8 +48,8 @@ public class StatisticsServiceImpl implements StatisticsService {
             item.setError(errors[i % 3]);
             item.setStatusTime(System.currentTimeMillis() -
                     (random.nextInt(10_000)));
-            total.setPages(total.getPages() + pages);
-            total.setLemmas(total.getLemmas() + lemmas);
+            total.setHowManyPages(total.getHowManyPages() + pages);
+            total.setHowManyLemmas(total.getHowManyLemmas() + lemmas);
             detailed.add(item);
         }
 
