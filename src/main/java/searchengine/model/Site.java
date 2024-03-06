@@ -3,12 +3,15 @@ package searchengine.model;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.LocalDateTime;
 import java.util.Date;
 @Getter
 @Setter
 @AllArgsConstructor
+@NoArgsConstructor
 
 @Entity
 @Table(name = "site")
@@ -24,7 +27,7 @@ public class Site {
 
     @Column(name = "status_time", nullable = false)
     @Temporal(TemporalType.TIMESTAMP)
-    private Date statusTime;
+    private LocalDateTime statusTime;
 
     @Column(name = "last_error")
     private String lastError;
