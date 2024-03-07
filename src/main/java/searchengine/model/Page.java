@@ -21,12 +21,11 @@ public class Page {
     @JoinColumn(name = "site_id")
     private Site site;
 
-    @Column(name = "path", columnDefinition = "TEXT")
+    @Column(name = "path")
     private String path;
 
-    @Enumerated(EnumType.STRING)
-    @Column(columnDefinition = "ENUM('INDEXING', 'INDEXED', 'FAILED')")
-    private Status status;
+    @Column(name = "code")
+    private int code;
 
     @Column(name = "content", nullable = false, columnDefinition = "MEDIUMTEXT")
     private String content;
