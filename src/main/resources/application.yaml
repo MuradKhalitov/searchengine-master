@@ -6,6 +6,10 @@ spring:
     username: root
     password: Test1234
     url: jdbc:mysql://localhost:3306/search_engine?useSSL=false&requireSSL=false&allowPublicKeyRetrieval=true
+    hikari:
+      maximumPoolSize: 60
+      connectionTimeout: 60000
+
   jpa:
     properties:
       hibernate:
@@ -13,6 +17,17 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: true
+
+logging:
+  level:
+    com:
+      zaxxer:
+        hikari: DEBUG
+    org:
+      hibernate:
+        engine:
+          jdbc: DEBUG
+
 
 indexing-settings:
   sites:

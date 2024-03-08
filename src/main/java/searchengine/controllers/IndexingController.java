@@ -19,7 +19,7 @@ public class IndexingController {
     private ConfigSitesList configSitesList;
 
     @GetMapping("/startIndexing")
-    public String startIndexing(){
+    public String startIndexing() throws InterruptedException {
         List<ConfigSite> sites = configSitesList.getSites();
         boolean success = indexingService.startIndexing(sites);
         if (success) {

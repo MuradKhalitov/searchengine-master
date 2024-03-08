@@ -25,18 +25,17 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class IndexingService {
     private static final int THREAD_POOL_SIZE = 10; // Размер пула потоков
-    private final ExecutorService executorService; // Пул потоков для индексации сайтов
+    ExecutorService executorService;
     private final SiteRepository siteRepository;
     private final PageRepository pageRepository;
     private Set<String> visitedUrls;
     public IndexingService(SiteRepository siteRepository, PageRepository pageRepository) {
         this.siteRepository = siteRepository;
         this.pageRepository = pageRepository;
-        executorService = Executors.newFixedThreadPool(THREAD_POOL_SIZE);
     }
 
     @Transactional
-    public boolean startIndexing(List<ConfigSite> configSites) {
+    public boolean startIndexing(List<ConfigSite> configSites) throws InterruptedException {
         if (isIndexingInProgress()) {
             return false;
         }
@@ -54,9 +53,11 @@ public class IndexingService {
             site.setStatusTime(LocalDateTime.now());
             //siteRepository.save(site);
             visitedUrls = new HashSet<>();
-
+            executorService = Executors.newFixedThreadPool(THREAD_POOL_SIZE);
             indexSite(site);
         }
+        executorService.shutdown();
+        executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
 
         return true;
     }
@@ -85,7 +86,7 @@ public class IndexingService {
             visitedUrls.add(url);
             savePage(site, url);
             Document doc = Jsoup.connect(url)
-                    .userAgent("Helio ntSearchBot")
+                    .userAgent("HeliontSearchBot")
                     .referrer("http://www.google.com")
                     .get();
             System.out.println("Обход: " + url);
@@ -106,8 +107,6 @@ public class IndexingService {
                 }
 
             }
-            executorService.shutdown();
-            executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
         }
     }
 
