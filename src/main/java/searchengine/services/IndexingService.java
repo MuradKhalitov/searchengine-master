@@ -5,7 +5,6 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import searchengine.config.ConfigSite;
 import searchengine.model.Page;
@@ -21,18 +20,18 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class IndexingService {
     private static final int THREAD_POOL_SIZE = 10; // Размер пула потоков
-    private ExecutorService executorService; // Пул потоков для индексации сайтов
-    @Autowired
-    private SiteRepository siteRepository;
-
-    @Autowired
-    private PageRepository pageRepository;
+    private final ExecutorService executorService; // Пул потоков для индексации сайтов
+    private final SiteRepository siteRepository;
+    private final PageRepository pageRepository;
     private Set<String> visitedUrls;
-    public IndexingService() {
+    public IndexingService(SiteRepository siteRepository, PageRepository pageRepository) {
+        this.siteRepository = siteRepository;
+        this.pageRepository = pageRepository;
         executorService = Executors.newFixedThreadPool(THREAD_POOL_SIZE);
     }
 
@@ -56,7 +55,7 @@ public class IndexingService {
             //siteRepository.save(site);
             visitedUrls = new HashSet<>();
 
-            executorService.submit(() -> indexSite(site));
+            indexSite(site);
         }
 
         return true;
@@ -64,66 +63,51 @@ public class IndexingService {
 
     private void indexSite(Site site) {
         try {
-            Document doc = Jsoup.connect(site.getUrl())
-                    .userAgent("HeliontSearchBot")
-                    .referrer("http://www.google.com")
-                    .get();
             String baseUrl = site.getUrl();
-            Elements links = doc.select("a[href]");
-            // Обходим все ссылки на страницы сайта
-            for (Element link : links) {
-                String href = link.attr("href");
-                if (!href.isEmpty()) {
-                    if (href.startsWith("http://") || href.startsWith("https://")) {
-                        // Определяем абсолютный URL страницы
-                        String absUrl = link.absUrl("href");
-                        pageCrawler(absUrl, site);
-
-                        // Сохраняем страницу в базу данных
-                        //savePage(site, absUrl);
-                    }
-                }
-            }
-
-            // После завершения обхода всех страниц обновляем статус сайта
             site.setStatus(Status.INDEXED);
             site.setStatusTime(LocalDateTime.now());
             siteRepository.save(site);
-        } catch (IOException e) {
+            pageCrawler(baseUrl, site);
+        } catch (IOException | InterruptedException e) {
             // Если произошла ошибка, обновляем статус сайта и сохраняем информацию об ошибке
             site.setStatus(Status.FAILED);
             site.setStatusTime(LocalDateTime.now());
             site.setLastError(e.getMessage());
             siteRepository.save(site);
         }
+
     }
 
-    private void pageCrawler(String url, Site site) throws IOException {
+    private void pageCrawler(String url, Site site) throws IOException, InterruptedException {
 // Проверяем, была ли уже посещена данная страница
         if (!visitedUrls.contains(url)) {
             // Добавляем URL в список посещенных
             visitedUrls.add(url);
+            savePage(site, url);
             Document doc = Jsoup.connect(url)
-                    .userAgent("HeliontSearchBot")
+                    .userAgent("Helio ntSearchBot")
                     .referrer("http://www.google.com")
                     .get();
-            String baseUrl = url;
+            System.out.println("Обход: " + url);
             Elements links = doc.select("a[href]");
             // Обходим все ссылки на страницы сайта
             for (Element link : links) {
-                String href = link.attr("href");
-                if (!href.isEmpty()) {
-                    if (href.startsWith("http://") || href.startsWith("https://")) {
-                        // Определяем абсолютный URL страницы
-                        String absUrl = link.absUrl("href");
-
-                        // Сохраняем страницу в базу данных
-                        savePage(site, href);
-                        pageCrawler(absUrl, site);
+                String absUrl = link.absUrl("href");
+                if (!absUrl.isEmpty()) {
+                    if (absUrl.startsWith("http://") || absUrl.startsWith("https://")) {
+                        executorService.execute(() -> {
+                            try {
+                                pageCrawler(absUrl, site);
+                            } catch (IOException | InterruptedException e) {
+                                throw new RuntimeException(e);
+                            }
+                        });
                     }
                 }
 
             }
+            executorService.shutdown();
+            executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
         }
     }
 
