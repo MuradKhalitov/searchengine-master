@@ -29,6 +29,7 @@ public class IndexingService {
     private final SiteRepository siteRepository;
     private final PageRepository pageRepository;
     private Set<String> visitedUrls;
+
     public IndexingService(SiteRepository siteRepository, PageRepository pageRepository) {
         this.siteRepository = siteRepository;
         this.pageRepository = pageRepository;
@@ -39,7 +40,6 @@ public class IndexingService {
         if (isIndexingInProgress()) {
             return false;
         }
-
         // Удаляем все данные из таблицы
         siteRepository.deleteAll();
         pageRepository.deleteAll();
@@ -56,8 +56,7 @@ public class IndexingService {
             executorService = Executors.newFixedThreadPool(THREAD_POOL_SIZE);
             indexSite(site);
         }
-        executorService.shutdown();
-        executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+
 
         return true;
     }
@@ -84,7 +83,8 @@ public class IndexingService {
         if (!visitedUrls.contains(url)) {
             // Добавляем URL в список посещенных
             visitedUrls.add(url);
-            savePage(site, url);
+            addPageToQueue(site, url);
+            //savePage(site, url);
             Document doc = Jsoup.connect(url)
                     .userAgent("HeliontSearchBot")
                     .referrer("http://www.google.com")
@@ -108,8 +108,15 @@ public class IndexingService {
 
             }
         }
+        executorService.shutdown();
+        executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
     }
-
+    private void addPageToQueue(Site site, String url) {
+        executorService.execute(() -> {
+            savePage(site, url);
+        });
+    }
+    @Transactional
     private void savePage(Site site, String url) {
         try {
             Document doc = Jsoup.connect(url).get();

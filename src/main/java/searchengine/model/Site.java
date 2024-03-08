@@ -8,6 +8,8 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 import java.util.Date;
+import java.util.List;
+
 @Getter
 @Setter
 @AllArgsConstructor
@@ -37,6 +39,8 @@ public class Site {
 
     @Column(name = "name", nullable = false)
     private String name;
+//    @OneToMany(mappedBy = "site", cascade = CascadeType.ALL)
+//    private List<Page> indexing;
 }
 
 

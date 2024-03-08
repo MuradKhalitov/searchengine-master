@@ -15,18 +15,18 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.MySQL8Dialect
     hibernate:
-      ddl-auto: update
+      ddl-auto: create
     show-sql: true
 
-logging:
-  level:
-    com:
-      zaxxer:
-        hikari: DEBUG
-    org:
-      hibernate:
-        engine:
-          jdbc: DEBUG
+#logging:
+#  level:
+#    com:
+#      zaxxer:
+#        hikari: DEBUG
+#    org:
+#      hibernate:
+#        engine:
+#          jdbc: DEBUG
 
 
 indexing-settings:

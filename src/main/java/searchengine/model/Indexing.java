@@ -17,11 +17,11 @@ public class Indexing {
     @Column(name = "id")
     private Long id;
 
-    @ManyToOne
+    @ManyToOne(cascade = CascadeType.ALL)
     @JoinColumn(name = "page_id", nullable = false)
     private Page page;
 
-    @ManyToOne
+    @ManyToOne(cascade = CascadeType.ALL)
     @JoinColumn(name = "lemma_id", nullable = false)
     private Lemma lemma;
 

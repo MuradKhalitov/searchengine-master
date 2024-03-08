@@ -3,6 +3,8 @@ package searchengine.model;
 import jakarta.persistence.*;
 import lombok.Data;
 
+import java.util.List;
+
 @Data
 @Entity
 @Table(name = "lemma")
@@ -20,4 +22,6 @@ public class Lemma {
 
     @Column(name = "frequency", nullable = false)
     private int frequency;
+    @OneToMany(mappedBy = "lemma", cascade = CascadeType.ALL)
+    private List<Indexing> indexing;
 }
