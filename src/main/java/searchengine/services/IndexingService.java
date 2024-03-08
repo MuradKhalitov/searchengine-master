@@ -25,7 +25,7 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class IndexingService {
     private static final int THREAD_POOL_SIZE = 10; // Размер пула потоков
-    ExecutorService executorService;
+    //ExecutorService executorService;
     private final SiteRepository siteRepository;
     private final PageRepository pageRepository;
     private Set<String> visitedUrls;
@@ -35,7 +35,7 @@ public class IndexingService {
         this.pageRepository = pageRepository;
     }
 
-    @Transactional
+    //@Transactional
     public boolean startIndexing(List<ConfigSite> configSites) throws InterruptedException {
         if (isIndexingInProgress()) {
             return false;
@@ -53,10 +53,11 @@ public class IndexingService {
             site.setStatusTime(LocalDateTime.now());
             //siteRepository.save(site);
             visitedUrls = new HashSet<>();
-            executorService = Executors.newFixedThreadPool(THREAD_POOL_SIZE);
+            //executorService = Executors.newFixedThreadPool(THREAD_POOL_SIZE);
             indexSite(site);
         }
-
+        //executorService.shutdown();
+        //executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
 
         return true;
     }
@@ -83,40 +84,38 @@ public class IndexingService {
         if (!visitedUrls.contains(url)) {
             // Добавляем URL в список посещенных
             visitedUrls.add(url);
-            addPageToQueue(site, url);
-            //savePage(site, url);
-            Document doc = Jsoup.connect(url)
-                    .userAgent("HeliontSearchBot")
-                    .referrer("http://www.google.com")
-                    .get();
-            System.out.println("Обход: " + url);
-            Elements links = doc.select("a[href]");
-            // Обходим все ссылки на страницы сайта
-            for (Element link : links) {
-                String absUrl = link.absUrl("href");
-                if (!absUrl.isEmpty()) {
-                    if (absUrl.startsWith("http://") || absUrl.startsWith("https://")) {
-                        executorService.execute(() -> {
-                            try {
-                                pageCrawler(absUrl, site);
-                            } catch (IOException | InterruptedException e) {
-                                throw new RuntimeException(e);
-                            }
-                        });
+            savePage(site, url);
+            try {
+                Document doc = Jsoup.connect(url)
+                        .userAgent("HeliontSearchBot")
+                        .referrer("http://www.google.com")
+                        .get();
+                System.out.println("Обход: " + url);
+                Elements links = doc.select("a[href]");
+                // Обходим все ссылки на страницы сайта
+                ExecutorService executorService = Executors.newFixedThreadPool(THREAD_POOL_SIZE);
+                for (Element link : links) {
+                    String absUrl = link.absUrl("href");
+                    if (!absUrl.isEmpty()) {
+                        if (absUrl.startsWith("http://") || absUrl.startsWith("https://")) {
+                            executorService.execute(() -> {
+                                try {
+                                    pageCrawler(absUrl, site);
+                                } catch (IOException | InterruptedException e) {
+                                    throw new RuntimeException(e);
+                                }
+                            });
+                        }
                     }
                 }
-
+                executorService.shutdown();
+                executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+            } catch (IOException | InterruptedException e) {
+                e.printStackTrace();
             }
         }
-        executorService.shutdown();
-        executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
     }
-    private void addPageToQueue(Site site, String url) {
-        executorService.execute(() -> {
-            savePage(site, url);
-        });
-    }
-    @Transactional
+
     private void savePage(Site site, String url) {
         try {
             Document doc = Jsoup.connect(url).get();
@@ -146,7 +145,7 @@ public class IndexingService {
     }
 
     public void stopIndexing() {
-        executorService.shutdownNow();
+        //executorService.shutdownNow();
         // Обновляем статусы всех сайтов, на которых обход ещё не завершён
         List<Site> sites = siteRepository.findByStatus(Status.INDEXING);
         for (Site site : sites) {
