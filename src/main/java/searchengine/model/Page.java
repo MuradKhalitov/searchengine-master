@@ -23,10 +23,10 @@ public class Page {
     @JoinColumn(name = "site_id")
     private Site site;
 
-    @Column(name = "path")
+    @Column(name = "path", nullable = false, columnDefinition = "TEXT")
     private String path;
 
-    @Column(name = "code")
+    @Column(name = "code", nullable = false)
     private int code;
 
     @Column(name = "content", nullable = false, columnDefinition = "MEDIUMTEXT")

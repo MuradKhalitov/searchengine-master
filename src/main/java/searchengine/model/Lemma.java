@@ -17,7 +17,7 @@ public class Lemma {
     @Column(name = "site_id", nullable = false)
     private Long siteId;
 
-    @Column(name = "lemma", nullable = false, length = 255)
+    @Column(name = "lemma", nullable = false, columnDefinition = "VARCHAR(255)")
     private String lemma;
 
     @Column(name = "frequency", nullable = false)

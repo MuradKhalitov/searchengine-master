@@ -24,20 +24,20 @@ public class Site {
     private Long id;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false)//, columnDefinition = "ENUM('INDEXING', 'INDEXED', 'FAILED')")
+    @Column(name = "status", nullable = false, columnDefinition = "ENUM('INDEXING', 'INDEXED', 'FAILED')")
     private Status status;
 
     @Column(name = "status_time", nullable = false)
     @Temporal(TemporalType.TIMESTAMP)
     private LocalDateTime statusTime;
 
-    @Column(name = "last_error")
+    @Column(name = "last_error", columnDefinition = "TEXT")
     private String lastError;
 
-    @Column(name = "url", nullable = false)
+    @Column(name = "url", nullable = false, columnDefinition = "VARCHAR(255)")
     private String url;
 
-    @Column(name = "name", nullable = false)
+    @Column(name = "name", nullable = false, columnDefinition = "VARCHAR(255)")
     private String name;
     @OneToMany(mappedBy = "site", cascade = CascadeType.REMOVE)
     private List<Page> page;

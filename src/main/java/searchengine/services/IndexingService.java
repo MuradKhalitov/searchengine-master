@@ -18,9 +18,7 @@ import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 @Service
 public class IndexingService {
@@ -41,8 +39,9 @@ public class IndexingService {
             return false;
         }
         // Удаляем все данные из таблицы
-        siteRepository.deleteAll();
         pageRepository.deleteAll();
+        siteRepository.deleteAll();
+
 
         // Создаем записи в таблице site со статусом INDEXING
         for (ConfigSite configSite : configSites) {
@@ -79,44 +78,65 @@ public class IndexingService {
 
     }
 
-    private void pageCrawler(String url, Site site) throws IOException, InterruptedException {
-// Проверяем, была ли уже посещена данная страница
-        if (!visitedUrls.contains(url)) {
-            // Добавляем URL в список посещенных
-            visitedUrls.add(url);
-            savePage(site, url);
-            try {
-                Document doc = Jsoup.connect(url)
-                        .userAgent("HeliontSearchBot")
-                        .referrer("http://www.google.com")
-                        .get();
-                System.out.println("Обход: " + url);
-                Elements links = doc.select("a[href]");
-                // Обходим все ссылки на страницы сайта
-                ExecutorService executorService = Executors.newFixedThreadPool(THREAD_POOL_SIZE);
-                for (Element link : links) {
-                    String absUrl = link.absUrl("href");
-                    if (!absUrl.isEmpty()) {
-                        if (absUrl.startsWith("http://") || absUrl.startsWith("https://")) {
-                            if (absUrl.contains(site.getUrl())) {
-                                executorService.execute(() -> {
-                                    try {
-                                        pageCrawler(absUrl, site);
-                                    } catch (IOException | InterruptedException e) {
-                                        throw new RuntimeException(e);
-                                    }
-                                });
-                            }
-                        }
-                    }
-                }
-                executorService.shutdown();
-                executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
-            } catch (IOException | InterruptedException e) {
-                e.printStackTrace();
-            }
+//    private void pageCrawler(String url, Site site) throws IOException, InterruptedException {
+//// Проверяем, была ли уже посещена данная страница
+//        if (!visitedUrls.contains(url)) {
+//            // Добавляем URL в список посещенных
+//            visitedUrls.add(url);
+//            savePage(site, url);
+//            try {
+//                Document doc = Jsoup.connect(url)
+//                        .userAgent("HeliontSearchBot")
+//                        .referrer("http://www.google.com")
+//                        .get();
+//                System.out.println("Обход: " + url);
+//                Elements links = doc.select("a[href]");
+//                // Обходим все ссылки на страницы сайта
+//                ExecutorService executorService = Executors.newFixedThreadPool(THREAD_POOL_SIZE);
+//                for (Element link : links) {
+//                    String absUrl = link.absUrl("href");
+//                    if (!absUrl.isEmpty()) {
+//                        if (absUrl.startsWith("http://") || absUrl.startsWith("https://")) {
+//                            if (absUrl.contains(site.getUrl())) {
+//                                executorService.execute(() -> {
+//                                    try {
+//                                        pageCrawler(absUrl, site);
+//                                    } catch (IOException | InterruptedException e) {
+//                                        throw new RuntimeException(e);
+//                                    }
+//                                });
+//                            }
+//                        }
+//                    }
+//                }
+//                executorService.shutdown();
+//                executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+//            } catch (IOException | InterruptedException e) {
+//                e.printStackTrace();
+//            }
+//        }
+//    }
+private void pageCrawler(String url, Site site) throws IOException, InterruptedException {
+    if (!visitedUrls.contains(url)) {
+        visitedUrls.add(url);
+        savePage(site, url);
+        try {
+            Document doc = Jsoup.connect(url)
+                    .userAgent("HeliontSearchBot")
+                    .referrer("http://www.google.com")
+                    .get();
+            System.out.println("Обход: " + url);
+            Elements links = doc.select("a[href]");
+
+            ForkJoinPool forkJoinPool = new ForkJoinPool(THREAD_POOL_SIZE);
+            forkJoinPool.invoke(new PageCrawlerTask(links, site));
+            forkJoinPool.shutdown();
+            forkJoinPool.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+        } catch (IOException | InterruptedException e) {
+            e.printStackTrace();
         }
     }
+}
 
     private void savePage(Site site, String url) {
         try {
@@ -147,13 +167,39 @@ public class IndexingService {
     }
 
     public void stopIndexing() {
-        //executorService.shutdownNow();
+        // Остановка выполнения всех потоков в ForkJoinPool
+        ForkJoinPool.commonPool().shutdownNow();
         // Обновляем статусы всех сайтов, на которых обход ещё не завершён
         List<Site> sites = siteRepository.findByStatus(Status.INDEXING);
         for (Site site : sites) {
             site.setStatus(Status.FAILED);
             site.setStatusTime(LocalDateTime.now());
             siteRepository.save(site);
+        }
+    }
+    private class PageCrawlerTask extends RecursiveAction {
+        private final Elements links;
+        private final Site site;
+
+        public PageCrawlerTask(Elements links, Site site) {
+            this.links = links;
+            this.site = site;
+        }
+
+        @Override
+        protected void compute() {
+            for (Element link : links) {
+                String absUrl = link.absUrl("href");
+                if (!absUrl.isEmpty() && absUrl.startsWith("http://") || absUrl.startsWith("https://")) {
+                    if (absUrl.contains(site.getUrl())) {
+                        try {
+                            pageCrawler(absUrl, site);
+                        } catch (IOException | InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                }
+            }
         }
     }
 }
