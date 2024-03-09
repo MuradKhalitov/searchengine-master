@@ -7,7 +7,7 @@ import searchengine.model.Status;
 
 import java.util.List;
 
-@Repository
+
 public interface SiteRepository extends JpaRepository<Site, Long> {
     List<Site> findByStatus(Status status);
 }

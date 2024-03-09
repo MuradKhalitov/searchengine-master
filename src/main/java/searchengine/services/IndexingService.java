@@ -98,13 +98,15 @@ public class IndexingService {
                     String absUrl = link.absUrl("href");
                     if (!absUrl.isEmpty()) {
                         if (absUrl.startsWith("http://") || absUrl.startsWith("https://")) {
-                            executorService.execute(() -> {
-                                try {
-                                    pageCrawler(absUrl, site);
-                                } catch (IOException | InterruptedException e) {
-                                    throw new RuntimeException(e);
-                                }
-                            });
+                            if (absUrl.contains(site.getUrl())) {
+                                executorService.execute(() -> {
+                                    try {
+                                        pageCrawler(absUrl, site);
+                                    } catch (IOException | InterruptedException e) {
+                                        throw new RuntimeException(e);
+                                    }
+                                });
+                            }
                         }
                     }
                 }
