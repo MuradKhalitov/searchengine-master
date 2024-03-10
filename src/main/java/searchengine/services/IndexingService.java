@@ -33,7 +33,6 @@ public class IndexingService {
         this.pageRepository = pageRepository;
     }
 
-    //@Transactional
     public boolean startIndexing(List<ConfigSite> configSites) throws InterruptedException {
         if (isIndexingInProgress()) {
             return false;
@@ -42,7 +41,7 @@ public class IndexingService {
         pageRepository.deleteAll();
         siteRepository.deleteAll();
 
-
+Long start = System.currentTimeMillis();
         // Создаем записи в таблице site со статусом INDEXING
         for (ConfigSite configSite : configSites) {
             Site site = new Site();
@@ -50,14 +49,10 @@ public class IndexingService {
             site.setName(configSite.getName());
             site.setStatus(Status.INDEXING);
             site.setStatusTime(LocalDateTime.now());
-            //siteRepository.save(site);
             visitedUrls = new HashSet<>();
-            //executorService = Executors.newFixedThreadPool(THREAD_POOL_SIZE);
             indexSite(site);
+            System.out.println("Индексация " + site.getUrl() + " " + ((System.currentTimeMillis() - start) / 1000f) + " sec");
         }
-        //executorService.shutdown();
-        //executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
-
         return true;
     }
 
@@ -190,7 +185,7 @@ private void pageCrawler(String url, Site site) throws IOException, InterruptedE
         protected void compute() {
             for (Element link : links) {
                 String absUrl = link.absUrl("href");
-                if (!absUrl.isEmpty() && absUrl.startsWith("http://") || absUrl.startsWith("https://")) {
+                //if (!absUrl.isEmpty() && absUrl.startsWith("http://") || absUrl.startsWith("https://")) {
                     if (absUrl.contains(site.getUrl())) {
                         try {
                             pageCrawler(absUrl, site);
@@ -198,7 +193,7 @@ private void pageCrawler(String url, Site site) throws IOException, InterruptedE
                             throw new RuntimeException(e);
                         }
                     }
-                }
+               // }
             }
         }
     }
