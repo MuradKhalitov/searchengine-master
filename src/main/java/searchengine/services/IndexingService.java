@@ -1,6 +1,5 @@
 package searchengine.services;
 
-import jakarta.transaction.Transactional;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -22,7 +21,7 @@ import java.util.concurrent.*;
 
 @Service
 public class IndexingService {
-    private static final int THREAD_POOL_SIZE = 10; // Размер пула потоков
+    private static final int THREAD_POOL_SIZE = 16; // Размер пула потоков
     //ExecutorService executorService;
     private final SiteRepository siteRepository;
     private final PageRepository pageRepository;
@@ -41,7 +40,7 @@ public class IndexingService {
         pageRepository.deleteAll();
         siteRepository.deleteAll();
 
-Long start = System.currentTimeMillis();
+        Long start = System.currentTimeMillis();
         // Создаем записи в таблице site со статусом INDEXING
         for (ConfigSite configSite : configSites) {
             Site site = new Site();
@@ -51,7 +50,7 @@ Long start = System.currentTimeMillis();
             site.setStatusTime(LocalDateTime.now());
             visitedUrls = new HashSet<>();
             indexSite(site);
-            System.out.println("Индексация " + site.getUrl() + " " + ((System.currentTimeMillis() - start) / 1000f) + " sec");
+            System.out.println("Индексация " + site.getUrl() + " " + ((System.currentTimeMillis() - start) / 60000f) + " min");
         }
         return true;
     }
@@ -73,7 +72,7 @@ Long start = System.currentTimeMillis();
 
     }
 
-//    private void pageCrawler(String url, Site site) throws IOException, InterruptedException {
+    //    private void pageCrawler(String url, Site site) throws IOException, InterruptedException {
 //// Проверяем, была ли уже посещена данная страница
 //        if (!visitedUrls.contains(url)) {
 //            // Добавляем URL в список посещенных
@@ -111,27 +110,27 @@ Long start = System.currentTimeMillis();
 //            }
 //        }
 //    }
-private void pageCrawler(String url, Site site) throws IOException, InterruptedException {
-    if (!visitedUrls.contains(url)) {
-        visitedUrls.add(url);
-        savePage(site, url);
-        try {
-            Document doc = Jsoup.connect(url)
-                    .userAgent("HeliontSearchBot")
-                    .referrer("http://www.google.com")
-                    .get();
-            System.out.println("Обход: " + url);
-            Elements links = doc.select("a[href]");
+    private void pageCrawler(String url, Site site) throws IOException, InterruptedException {
+        if (!visitedUrls.contains(url) && !isFileLink(url)) {
+            visitedUrls.add(url);
+            savePage(site, url);
+            try {
+                Document doc = Jsoup.connect(url)
+                        .userAgent("HeliontSearchBot")
+                        .referrer("http://www.google.com")
+                        .get();
+                System.out.println("Обход: " + url);
+                Elements links = doc.select("a[href]");
 
-            ForkJoinPool forkJoinPool = new ForkJoinPool(THREAD_POOL_SIZE);
-            forkJoinPool.invoke(new PageCrawlerTask(links, site));
-            forkJoinPool.shutdown();
-            forkJoinPool.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
-        } catch (IOException | InterruptedException e) {
-            e.printStackTrace();
+                ForkJoinPool forkJoinPool = new ForkJoinPool(THREAD_POOL_SIZE);
+                forkJoinPool.invoke(new PageCrawlerTask(links, site));
+                forkJoinPool.shutdown();
+                forkJoinPool.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+            } catch (IOException | InterruptedException e) {
+                e.printStackTrace();
+            }
         }
     }
-}
 
     private void savePage(Site site, String url) {
         try {
@@ -172,6 +171,21 @@ private void pageCrawler(String url, Site site) throws IOException, InterruptedE
             siteRepository.save(site);
         }
     }
+    private boolean isFileLink(String url) {
+        String[] parts = url.split("\\.");
+        if (parts.length > 1) {
+            String extension = parts[parts.length - 1];
+            // Список расширений файлов, которые нужно исключить (например, pdf, jpg, png и т.д.)
+            String[] excludedExtensions = {"pdf", "jpg", "jpeg", "png", "gif", "doc", "docx", "xls", "xlsx"};
+            for (String ext : excludedExtensions) {
+                if (extension.equalsIgnoreCase(ext)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     private class PageCrawlerTask extends RecursiveAction {
         private final Elements links;
         private final Site site;
@@ -186,14 +200,14 @@ private void pageCrawler(String url, Site site) throws IOException, InterruptedE
             for (Element link : links) {
                 String absUrl = link.absUrl("href");
                 //if (!absUrl.isEmpty() && absUrl.startsWith("http://") || absUrl.startsWith("https://")) {
-                    if (absUrl.contains(site.getUrl())) {
-                        try {
-                            pageCrawler(absUrl, site);
-                        } catch (IOException | InterruptedException e) {
-                            throw new RuntimeException(e);
-                        }
+                if (absUrl.contains(site.getUrl())) {
+                    try {
+                        pageCrawler(absUrl, site);
+                    } catch (IOException | InterruptedException e) {
+                        throw new RuntimeException(e);
                     }
-               // }
+                }
+                // }
             }
         }
     }
