@@ -14,8 +14,9 @@ public class Lemma {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "site_id", nullable = false)
-    private Long siteId;
+    @ManyToOne(cascade = CascadeType.REMOVE)
+    @JoinColumn(name = "site_id")
+    private Site site;
 
     @Column(name = "lemma", nullable = false, columnDefinition = "VARCHAR(255)")
     private String lemma;

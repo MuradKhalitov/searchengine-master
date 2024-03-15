@@ -1,0 +1,95 @@
+package searchengine.services;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import searchengine.dto.PageDTO;
+import searchengine.model.Page;
+import searchengine.repository.IndexingRepository;
+
+import javax.naming.directory.SearchResult;
+import java.util.ArrayList;
+import java.util.List;
+
+@Service
+public class SearchService {
+
+    @Autowired
+    private IndexingRepository indexRepository;
+
+    public List<SearchResult> search(String query) {
+        // Разбиение поискового запроса на отдельные слова и формирование списка уникальных лемм
+        List<String> lemmas = extractLemmas(query);
+
+        // Исключение лемм, которые встречаются на слишком большом количестве страниц
+        lemmas = filterFrequentLemmas(lemmas);
+
+        // Сортировка лемм по увеличению частоты встречаемости
+        lemmas.sort((lemma1, lemma2) -> {
+            // Реализуйте сравнение частоты встречаемости для сортировки
+            return getFrequency(lemma1) - getFrequency(lemma2);
+        });
+
+        // Поиск страниц, содержащих леммы из списка
+        List<Page> pages = findPagesByLemmas(lemmas);
+
+        // Рассчет релевантности для каждой страницы
+        calculateRelevance(pages, lemmas);
+
+        // Сортировка страниц по убыванию релевантности
+        pages.sort((page1, page2) -> Double.compare(page2.getRelevance(), page1.getRelevance()));
+
+        // Формирование списка результатов поиска
+        List<SearchResult> searchResults = new ArrayList<>();
+        for (Page page : pages) {
+            SearchResult result = new SearchResult();
+            result.setUri(page.getUri());
+            result.setTitle(page.getTitle());
+            result.setSnippet(generateSnippet(page.getText(), lemmas));
+            result.setRelevance(page.getRelevance());
+            searchResults.add(result);
+        }
+
+        return searchResults;
+    }
+
+    private List<String> extractLemmas(String query) {
+        List<String> lemmas = new ArrayList<>();
+
+        // Предположим, что у вас есть метод, который разбивает текст на слова
+        List<String> words = splitTextIntoWords(query);
+
+        // Предположим, что ваш поисковый индекс предоставляет метод для проверки, является ли слово леммой
+        for (String word : words) {
+            if (indexRepository.isLemma(word)) {
+                lemmas.add(word);
+            }
+        }
+
+        return lemmas;
+    }
+
+    private List<String> filterFrequentLemmas(List<String> lemmas) {
+        // Реализуйте метод для фильтрации частых лемм
+        return new ArrayList<>();
+    }
+
+    private List<Page> findPagesByLemmas(List<String> lemmas) {
+        // Реализуйте метод для поиска страниц по леммам
+        return new ArrayList<>();
+    }
+
+    private void calculateRelevance(List<Page> pages, List<String> lemmas) {
+        // Реализуйте метод для расчета релевантности страниц
+    }
+
+    private String generateSnippet(String text, List<String> lemmas) {
+        // Реализуйте метод для генерации сниппета
+        return "";
+    }
+
+    private int getFrequency(String lemma) {
+        // Реализуйте метод для получения частоты встречаемости леммы
+        return 0;
+    }
+}
+

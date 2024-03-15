@@ -9,12 +9,9 @@ import org.jsoup.safety.Safelist;
 import org.jsoup.select.Elements;
 import org.springframework.stereotype.Service;
 import searchengine.config.ConfigSite;
-import searchengine.model.Lemma;
 import searchengine.model.Page;
 import searchengine.model.Site;
 import searchengine.model.Status;
-import searchengine.repository.IndexingRepository;
-import searchengine.repository.LemmaRepository;
 import searchengine.repository.PageRepository;
 import searchengine.repository.SiteRepository;
 
@@ -26,21 +23,17 @@ import java.util.concurrent.*;
 @Service
 public class IndexingService {
     private static final int THREAD_POOL_SIZE = 16; // Размер пула потоков
-    private static final int MAX_INDEXING_PAGE = 10000;
+    private static final int MAX_INDEXING_PAGE = 5;
     private static int indexingPageCount = 0;
     //ExecutorService executorService;
     private final SiteRepository siteRepository;
     private final PageRepository pageRepository;
-    private final LemmaRepository lemmaRepository;
-    private final IndexingRepository indexingRepository;
     private Boolean stop = false;
     private Set<String> visitedUrls;
 
-    public IndexingService(SiteRepository siteRepository, PageRepository pageRepository, LemmaRepository lemmaRepository, IndexingRepository indexingRepository) {
+    public IndexingService(SiteRepository siteRepository, PageRepository pageRepository) {
         this.siteRepository = siteRepository;
         this.pageRepository = pageRepository;
-        this.lemmaRepository = lemmaRepository;
-        this.indexingRepository = indexingRepository;
     }
 
     public boolean startIndexing(List<ConfigSite> configSites) throws InterruptedException {
@@ -49,7 +42,6 @@ public class IndexingService {
         }
         stop = false;
         // Удаляем все данные из таблицы
-        lemmaRepository.deleteAll();
         pageRepository.deleteAll();
         siteRepository.deleteAll();
 
@@ -90,50 +82,11 @@ public class IndexingService {
 
     }
 
-    //    private void pageCrawler(String url, Site site) throws IOException, InterruptedException {
-//// Проверяем, была ли уже посещена данная страница
-//        if (!visitedUrls.contains(url)) {
-//            // Добавляем URL в список посещенных
-//            visitedUrls.add(url);
-//            savePage(site, url);
-//            try {
-//                Document doc = Jsoup.connect(url)
-//                        .userAgent("HeliontSearchBot")
-//                        .referrer("http://www.google.com")
-//                        .get();
-//                System.out.println("Обход: " + url);
-//                Elements links = doc.select("a[href]");
-//                // Обходим все ссылки на страницы сайта
-//                ExecutorService executorService = Executors.newFixedThreadPool(THREAD_POOL_SIZE);
-//                for (Element link : links) {
-//                    String absUrl = link.absUrl("href");
-//                    if (!absUrl.isEmpty()) {
-//                        if (absUrl.startsWith("http://") || absUrl.startsWith("https://")) {
-//                            if (absUrl.contains(site.getUrl())) {
-//                                executorService.execute(() -> {
-//                                    try {
-//                                        pageCrawler(absUrl, site);
-//                                    } catch (IOException | InterruptedException e) {
-//                                        throw new RuntimeException(e);
-//                                    }
-//                                });
-//                            }
-//                        }
-//                    }
-//                }
-//                executorService.shutdown();
-//                executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
-//            } catch (IOException | InterruptedException e) {
-//                e.printStackTrace();
-//            }
-//        }
-//    }
     private void pageCrawler(String url, Site site, Document doc) throws IOException, InterruptedException {
         if (!stop || indexingPageCount < MAX_INDEXING_PAGE) {
             if (!visitedUrls.contains(url) && !isFileLink(url)) {
                 visitedUrls.add(url);
                 savePage(site, url, doc);
-                indexingPageCount++;
                 try {
                     Document document = Jsoup.connect(url)
                             .userAgent("HeliontSearchBot")
@@ -143,14 +96,14 @@ public class IndexingService {
                     Elements links = doc.select("a[href]");
 
                     ForkJoinPool forkJoinPool = new ForkJoinPool(THREAD_POOL_SIZE);
-                    forkJoinPool.invoke(new PageCrawlerTask(links, site, document));
+                    forkJoinPool.invoke(new PageCrawlerTask(url, site, document));
                     forkJoinPool.shutdown();
                     forkJoinPool.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
                 } catch (IOException | InterruptedException e) {
                     e.printStackTrace();
                 }
             }
-        }else {
+        } else {
             ForkJoinPool.commonPool().shutdown();
 
             try {
@@ -165,6 +118,7 @@ public class IndexingService {
 
     private void savePage(Site site, String url, Document doc) {
         try {
+            indexingPageCount++;
             //Document doc = Jsoup.connect(url).get();
             String path = url.substring(site.getUrl().length()); // Относительный путь страницы
             String content = doc.html(); // Код страницы
@@ -186,6 +140,7 @@ public class IndexingService {
             pageRepository.save(page);
         }
     }
+
     private void lemmatizeText(Page page, Site site, Document doc) throws IOException {
         // Удаление всех HTML-тегов, кроме разрешенных
         Safelist Whitelist = null;
@@ -215,18 +170,11 @@ public class IndexingService {
             for (String baseForm : baseForms) {
                 // Добавляем базовую форму слова в карту и увеличиваем счетчик упоминаний
                 lemmaCountMap.put(baseForm, lemmaCountMap.getOrDefault(baseForm, 0) + 1);
-
             }
-
         }
         // Выводим результаты
         for (Map.Entry<String, Integer> entry : lemmaCountMap.entrySet()) {
-            Lemma lemma = new Lemma();
-            lemma.setLemma(entry.getKey());
-            lemma.setSite(site);
-            lemma.setFrequency(entry.getValue());
-            lemmaRepository.save(lemma);
-            //System.out.println(entry.getKey() + " — " + entry.getValue());
+            System.out.println(entry.getKey() + " — " + entry.getValue());
         }
     }
 
@@ -264,29 +212,48 @@ public class IndexingService {
     }
 
     private class PageCrawlerTask extends RecursiveAction {
-        private final Elements links;
+        private final String url;
         private final Site site;
         private final Document doc;
 
-        public PageCrawlerTask(Elements links, Site site, Document doc) {
-            this.links = links;
+        public PageCrawlerTask(String url, Site site, Document doc) {
+            this.url = url;
             this.site = site;
             this.doc = doc;
         }
 
         @Override
         protected void compute() {
-            for (Element link : links) {
-                String absUrl = link.absUrl("href");
-                if (absUrl.contains(site.getUrl())) {
-                    try {
-                        pageCrawler(absUrl, site, doc);
-                    } catch (IOException | InterruptedException e) {
-                        throw new RuntimeException(e);
+            if (indexingPageCount < MAX_INDEXING_PAGE) {
+                List<PageCrawlerTask> tasks = new ArrayList<>();
+                try {
+                    Document document = Jsoup.connect(url)
+                            .userAgent("HeliontSearchBot")
+                            .referrer("http://www.google.com")
+                            .get();
+                    System.out.println("Обход: " + url);
+                    Elements links = document.select("a[href]");
+
+                    for (Element link : links) {
+                        String absUrl = link.absUrl("href");
+                        if (absUrl.contains(site.getUrl())) {
+                            if (indexingPageCount < MAX_INDEXING_PAGE) {
+                                indexingPageCount++;
+                                tasks.add(new PageCrawlerTask(absUrl, site, document));
+                            } else {
+                                break;
+                            }
+                        }
                     }
+                    invokeAll(tasks);
+                } catch (IOException e) {
+                    e.printStackTrace();
                 }
             }
         }
     }
+
+
+
 }
 

@@ -8,7 +8,9 @@ import lombok.Setter;
 @Getter
 @Setter
 @Entity
-@Table(name = "indexing")
+@Table(name = "indexing", uniqueConstraints = {
+        @UniqueConstraint(name = "UniquePageAndLemma", columnNames = {"page_id", "lemma_id"})
+})
 public class Indexing {
     private boolean indexingInProgress;
 
