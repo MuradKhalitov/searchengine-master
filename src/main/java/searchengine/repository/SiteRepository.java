@@ -1,13 +1,19 @@
 package searchengine.repository;
 
+import searchengine.model.Site;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
-import searchengine.model.Site;
-import searchengine.model.Status;
 
+import jakarta.transaction.Transactional;
 import java.util.List;
+import java.util.Optional;
 
-
-public interface SiteRepository extends JpaRepository<Site, Long> {
-    List<Site> findByStatus(Status status);
+@Repository
+public interface SiteRepository extends JpaRepository<Site, Integer> {
+    Optional<Site> findByUrlAndType(String url, String type);
+    Optional<Site> findByNameAndType(String name, String type);
+    Integer countByType(String type);
+    List<Site> findAllByType(String type);
+    @Transactional
+    void deleteByType(String type);
 }

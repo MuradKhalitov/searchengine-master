@@ -4,8 +4,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import searchengine.config.ConfigSite;
 import searchengine.config.ConfigSitesList;
-import searchengine.dto.statistics.DetailedStatisticsItem;
-import searchengine.dto.statistics.StatisticsData;
+import searchengine.dto.statistics.DetailedStatistics;
+import searchengine.dto.statistics.Statistics;
 import searchengine.dto.statistics.StatisticsResponse;
 import searchengine.dto.statistics.TotalStatistics;
 
@@ -33,11 +33,11 @@ public class StatisticsServiceImpl implements StatisticsService {
         total.setHowManySites(sites.getSites().size());
         total.setIndexing(true);
 
-        List<DetailedStatisticsItem> detailed = new ArrayList<>();
+        List<DetailedStatistics> detailed = new ArrayList<>();
         List<ConfigSite> sitesList = sites.getSites();
         for(int i = 0; i < sitesList.size(); i++) {
             ConfigSite site = sitesList.get(i);
-            DetailedStatisticsItem item = new DetailedStatisticsItem();
+            DetailedStatistics item = new DetailedStatistics();
             item.setName(site.getName());
             item.setUrl(site.getUrl());
             int pages = random.nextInt(1_000);
@@ -54,7 +54,7 @@ public class StatisticsServiceImpl implements StatisticsService {
         }
 
         StatisticsResponse response = new StatisticsResponse();
-        StatisticsData data = new StatisticsData();
+        Statistics data = new Statistics();
         data.setTotal(total);
         data.setDetailed(detailed);
         response.setStatistics(data);

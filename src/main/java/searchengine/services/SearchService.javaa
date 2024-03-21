@@ -67,7 +67,16 @@ public class SearchService {
 
         return lemmas;
     }
+    public int getTotalCount(String query, String site) {
+        // Подготовка критериев поиска
+        List<String> lemmas = // Преобразование запроса в леммы или другой формат для сопоставления с индексом
+                List<Long> pageIds = // Получение списка ID страниц для конкретного сайта или всех сайтов
 
+        // Запрос к индексу для подсчета общего количества результатов
+        int totalCount = indexRepository.countByPageIdInAndLemmaIdIn(pageIds, lemmas);
+
+        return totalCount;
+    }
     private List<String> filterFrequentLemmas(List<String> lemmas) {
         // Реализуйте метод для фильтрации частых лемм
         return new ArrayList<>();

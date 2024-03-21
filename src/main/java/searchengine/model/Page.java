@@ -1,37 +1,47 @@
 package searchengine.model;
+
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.Data;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 
-import java.util.List;
-
-@Getter
-@Setter
-@AllArgsConstructor
-@NoArgsConstructor
+import java.io.Serializable;
 
 @Entity
-@Table(name = "page", indexes = @Index(name = "path_index", columnList = "path"))
-public class Page {
+@Table(name = "page")
+@Data
+public class Page implements Serializable {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id")
-    private Long id;
-    @ManyToOne(cascade = CascadeType.REMOVE)
-    @JoinColumn(name = "site_id")
+    private int id;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "site_id", nullable = false, foreignKey = @ForeignKey(name = "FK_page_site"))
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private Site site;
-
-    @Column(name = "path", nullable = false, columnDefinition = "TEXT")
+    @Column(columnDefinition = "text", nullable = false)
     private String path;
-
-    @Column(name = "code", nullable = false)
+    @Column(nullable = false)
     private int code;
-
-    @Column(name = "content", nullable = false, columnDefinition = "MEDIUMTEXT")
+    @Column(columnDefinition = "mediumtext", nullable = false)
     private String content;
-    @OneToMany(mappedBy = "page", cascade = CascadeType.REMOVE)
-    private List<Indexing> indexing;
-}
 
+    @Transient
+    private String title;
+
+    @Override
+    public int hashCode() {
+        return path != null && site != null ? path.hashCode() + site.hashCode() : 0;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        Page p = (Page) obj;
+        return site == null ||
+                getClass() == obj.getClass() && path.equals(p.path) && site == p.site;
+    }
+
+    @Override
+    public String toString() {
+        return "id: " + id + ", siteId: " + site.getId() + ", path: " + path;
+    }
+}

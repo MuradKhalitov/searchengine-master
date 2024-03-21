@@ -5,7 +5,7 @@ import lombok.Data;
 import java.util.List;
 
 @Data
-public class StatisticsData {
+public class Statistics {
     private TotalStatistics total;
-    private List<DetailedStatisticsItem> detailed;
+    private List<DetailedStatistics> detailed;
 }

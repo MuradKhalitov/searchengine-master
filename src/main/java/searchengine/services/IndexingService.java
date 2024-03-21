@@ -9,14 +9,8 @@ import org.jsoup.safety.Safelist;
 import org.jsoup.select.Elements;
 import org.springframework.stereotype.Service;
 import searchengine.config.ConfigSite;
-import searchengine.model.Lemma;
-import searchengine.model.Page;
-import searchengine.model.Site;
-import searchengine.model.Status;
-import searchengine.repository.IndexingRepository;
-import searchengine.repository.LemmaRepository;
-import searchengine.repository.PageRepository;
-import searchengine.repository.SiteRepository;
+import searchengine.model.*;
+import searchengine.repository.Repos;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -29,19 +23,9 @@ public class IndexingService {
     private static final int MAX_INDEXING_PAGE = 10000;
     private static int indexingPageCount = 0;
     //ExecutorService executorService;
-    private final SiteRepository siteRepository;
-    private final PageRepository pageRepository;
-    private final LemmaRepository lemmaRepository;
-    private final IndexingRepository indexingRepository;
+
     private Boolean stop = false;
     private Set<String> visitedUrls;
-
-    public IndexingService(SiteRepository siteRepository, PageRepository pageRepository, LemmaRepository lemmaRepository, IndexingRepository indexingRepository) {
-        this.siteRepository = siteRepository;
-        this.pageRepository = pageRepository;
-        this.lemmaRepository = lemmaRepository;
-        this.indexingRepository = indexingRepository;
-    }
 
     public boolean startIndexing(List<ConfigSite> configSites) throws InterruptedException {
         if (isIndexingInProgress()) {
@@ -49,9 +33,10 @@ public class IndexingService {
         }
         stop = false;
         // Удаляем все данные из таблицы
-        lemmaRepository.deleteAll();
-        pageRepository.deleteAll();
-        siteRepository.deleteAll();
+        Repos.indexRepo.deleteAll();
+        Repos.lemmaRepo.deleteAll();
+        Repos.pageRepo.deleteAll();
+        Repos.siteRepo.deleteAll();
 
         Long start = System.currentTimeMillis();
         // Создаем записи в таблице site со статусом INDEXING
@@ -59,7 +44,7 @@ public class IndexingService {
             Site site = new Site();
             site.setUrl(configSite.getUrl());
             site.setName(configSite.getName());
-            site.setStatus(Status.INDEXING);
+            site.setType(Site.INDEXING);
             site.setStatusTime(LocalDateTime.now());
             visitedUrls = new HashSet<>();
             indexSite(site);
@@ -68,13 +53,13 @@ public class IndexingService {
         return true;
     }
 
-    private void indexSite(Site site) {
+    public boolean indexSite(Site site) {
         try {
             indexingPageCount = 0;
             String baseUrl = site.getUrl();
-            site.setStatus(Status.INDEXED);
+            site.setType(Site.INDEXED);
             site.setStatusTime(LocalDateTime.now());
-            siteRepository.save(site);
+            Repos.siteRepo.save(site);
             Document doc = Jsoup.connect(site.getUrl())
                     .userAgent("HeliontSearchBot")
                     .referrer("http://www.google.com")
@@ -82,12 +67,13 @@ public class IndexingService {
             pageCrawler(baseUrl, site, doc);
         } catch (IOException | InterruptedException e) {
             // Если произошла ошибка, обновляем статус сайта и сохраняем информацию об ошибке
-            site.setStatus(Status.FAILED);
+            site.setType(Site.FAILED);
             site.setStatusTime(LocalDateTime.now());
             site.setLastError(e.getMessage());
-            siteRepository.save(site);
+            Repos.siteRepo.save(site);
+            return false;
         }
-
+return true;
     }
 
     //    private void pageCrawler(String url, Site site) throws IOException, InterruptedException {
@@ -166,7 +152,7 @@ public class IndexingService {
     private void savePage(Site site, String url, Document doc) {
         try {
             //Document doc = Jsoup.connect(url).get();
-            String path = url.substring(site.getUrl().length()); // Относительный путь страницы
+            String path = url.substring(site.getUrl().length() - 1); // Относительный путь страницы
             String content = doc.html(); // Код страницы
 
             Page page = new Page();
@@ -174,7 +160,7 @@ public class IndexingService {
             page.setPath(path);
             page.setCode(200); // Прошли успешно
             page.setContent(content);
-            pageRepository.save(page);
+            Repos.pageRepo.save(page);
             lemmatizeText(page, site, doc);
         } catch (IOException e) {
             // Если произошла ошибка при получении страницы, сохраняем информацию о ней с кодом ошибки
@@ -183,7 +169,7 @@ public class IndexingService {
             page.setPath(url);
             page.setCode(-1); // Код ошибки при получении страницы
             page.setContent(e.getMessage());
-            pageRepository.save(page);
+            Repos.pageRepo.save(page);
         }
     }
     private void lemmatizeText(Page page, Site site, Document doc) throws IOException {
@@ -225,27 +211,34 @@ public class IndexingService {
             lemma.setLemma(entry.getKey());
             lemma.setSite(site);
             lemma.setFrequency(entry.getValue());
-            lemmaRepository.save(lemma);
+            Repos.lemmaRepo.save(lemma);
+            Index index = new Index();
+            index.setLemma(lemma);
+            index.setPage(page);
+            index.setRank(entry.getValue());
+            Repos.indexRepo.save(index);
+
             //System.out.println(entry.getKey() + " — " + entry.getValue());
         }
     }
 
     private boolean isIndexingInProgress() {
-        List<Site> sites = siteRepository.findByStatus(Status.INDEXING);
+        List<Site> sites = Repos.siteRepo.findAllByType(Site.INDEXING);
         return !sites.isEmpty();
     }
 
-    public void stopIndexing() {
+    public boolean stopIndexing() {
         // Остановка выполнения всех потоков в ForkJoinPool
         //ForkJoinPool.commonPool().shutdownNow();
         stop = true;
         // Обновляем статусы всех сайтов, на которых обход ещё не завершён
-        List<Site> sites = siteRepository.findByStatus(Status.INDEXING);
+        List<Site> sites = Repos.siteRepo.findAllByType(Site.INDEXING);
         for (Site site : sites) {
-            site.setStatus(Status.FAILED);
+            site.setType(Site.FAILED);
             site.setStatusTime(LocalDateTime.now());
-            siteRepository.save(site);
+            Repos.siteRepo.save(site);
         }
+        return true;
     }
 
     private boolean isFileLink(String url) {
